@@ -32,7 +32,7 @@ const GRAY_PALETTE = ["#444", "#666", "#888", "#aaa", "#ccc", "#fff"];
 
 function FlowPreview({ time }: { time: number }) {
   const elements = useMemo(() => {
-    const noiseScale = 0.01;
+    const noiseScale = 0.08;
     const rows: JSX.Element[] = [];
 
     for (let y = 0; y < PREVIEW_HEIGHT; y++) {
@@ -174,7 +174,7 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTime((t) => t + 0.05);
+      setTime((t) => t + 0.015);
     }, 50);
     return () => clearInterval(interval);
   }, []);

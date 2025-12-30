@@ -8,31 +8,32 @@
 import { useState, useEffect, useMemo } from "react";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard } from "@opentui/react";
-import { FlowField, Plasma } from "./experiments";
+import { FlowField, Plasma, Tunnel } from "./experiments";
 import { simplex3 } from "./experiments/flow/noise";
-import { hueToHex } from "./utils";
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: true,
 });
 
-type Experiment = "menu" | "flow" | "plasma";
+type Experiment = "menu" | "flow" | "plasma" | "tunnel";
 
 // Canvas dimensions (10:3 aspect ratio)
 const CANVAS_WIDTH = 100;
 const CANVAS_HEIGHT = 30;
 
 // Preview dimensions
-const PREVIEW_WIDTH = 32;
-const PREVIEW_HEIGHT = 8;
+const PREVIEW_WIDTH = 24;
+const PREVIEW_HEIGHT = 6;
+
+// Shared palette
+const GRAY_PALETTE = ["#333", "#555", "#777", "#999", "#bbb", "#ddd"];
 
 // Mini flow field preview
 const ARROWS = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
-const GRAY_PALETTE = ["#444", "#666", "#888", "#aaa", "#ccc", "#fff"];
 
 function FlowPreview({ time }: { time: number }) {
   const elements = useMemo(() => {
-    const noiseScale = 0.08;
+    const noiseScale = 0.1;
     const rows: JSX.Element[] = [];
 
     for (let y = 0; y < PREVIEW_HEIGHT; y++) {
@@ -100,7 +101,7 @@ function PlasmaPreview({ time }: { time: number }) {
       let currentColorIdx = -1;
 
       for (let x = 0; x < PREVIEW_WIDTH; x++) {
-        const value = plasmaValue(x * 0.4, y * 0.8, time);
+        const value = plasmaValue(x * 0.5, y * 1.0, time);
         const colorIdx = Math.floor(value * (GRAY_PALETTE.length - 0.01));
         const charIdx = Math.floor(value * (PLASMA_CHARS.length - 0.01));
         const char = PLASMA_CHARS[charIdx] ?? " ";
@@ -133,6 +134,66 @@ function PlasmaPreview({ time }: { time: number }) {
   return <box flexDirection="column">{elements}</box>;
 }
 
+// Mini tunnel preview
+const TUNNEL_CHARS = " ·:=≡#";
+
+function TunnelPreview({ time }: { time: number }) {
+  const elements = useMemo(() => {
+    const rows: JSX.Element[] = [];
+    const centerX = PREVIEW_WIDTH / 2;
+    const centerY = PREVIEW_HEIGHT / 2;
+    const maxDist = Math.sqrt(centerX * centerX + (centerY * 2) * (centerY * 2));
+    const ringCount = 8;
+
+    for (let y = 0; y < PREVIEW_HEIGHT; y++) {
+      const segments: { text: string; color: string }[] = [];
+      let currentText = "";
+      let currentColorIdx = -1;
+
+      for (let x = 0; x < PREVIEW_WIDTH; x++) {
+        const dx = x - centerX;
+        const dy = (y - centerY) * 2;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const normalizedDist = dist / maxDist;
+        const logDist = normalizedDist > 0 ? Math.log(normalizedDist * 10 + 1) / Math.log(11) : 0;
+        const ringPhase = (logDist * ringCount - time) % 1;
+        const adjustedPhase = ringPhase < 0 ? ringPhase + 1 : ringPhase;
+        const ringIntensity = Math.pow(Math.sin(adjustedPhase * Math.PI), 0.5);
+        const depthFade = 1 - normalizedDist * 0.7;
+        const intensity = ringIntensity * depthFade;
+
+        const charIdx = Math.floor(intensity * (TUNNEL_CHARS.length - 0.01));
+        const colorIdx = Math.floor(intensity * (GRAY_PALETTE.length - 0.01));
+        const char = TUNNEL_CHARS[Math.max(0, Math.min(TUNNEL_CHARS.length - 1, charIdx))] ?? " ";
+
+        if (colorIdx === currentColorIdx) {
+          currentText += char;
+        } else {
+          if (currentText) {
+            segments.push({ text: currentText, color: GRAY_PALETTE[currentColorIdx] ?? "#333" });
+          }
+          currentText = char;
+          currentColorIdx = colorIdx;
+        }
+      }
+      if (currentText) {
+        segments.push({ text: currentText, color: GRAY_PALETTE[currentColorIdx] ?? "#333" });
+      }
+
+      rows.push(
+        <box key={y} flexDirection="row">
+          {segments.map((seg, i) => (
+            <text key={i} fg={seg.color}>{seg.text}</text>
+          ))}
+        </box>
+      );
+    }
+    return rows;
+  }, [time]);
+
+  return <box flexDirection="column">{elements}</box>;
+}
+
 interface ExperimentCardProps {
   number: string;
   title: string;
@@ -148,7 +209,7 @@ function ExperimentCard({ number, title, description, color, preview }: Experime
       borderStyle="rounded"
       borderColor="#333"
       padding={1}
-      width={38}
+      width={28}
     >
       {/* Preview */}
       <box marginBottom={1} overflow="hidden">
@@ -182,6 +243,7 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
   useKeyboard((key) => {
     if (key.raw === "1") onSelect("flow");
     if (key.raw === "2") onSelect("plasma");
+    if (key.raw === "3") onSelect("tunnel");
     if (key.name === "q") renderer.destroy();
   });
 
@@ -198,22 +260,29 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
         <ExperimentCard
           number="1"
           title="Flow Field"
-          description="Simplex noise vector field"
+          description="Simplex noise vectors"
           color="#FF6600"
           preview={<FlowPreview time={time} />}
         />
         <ExperimentCard
           number="2"
           title="Plasma"
-          description="Classic demoscene effect"
+          description="Demoscene classic"
           color="#FF00FF"
           preview={<PlasmaPreview time={time} />}
+        />
+        <ExperimentCard
+          number="3"
+          title="Tunnel"
+          description="Infinite forward"
+          color="#00CCFF"
+          preview={<TunnelPreview time={time} />}
         />
       </box>
 
       {/* Footer */}
       <box flexDirection="row" justifyContent="center" marginTop={2}>
-        <text fg="#444">[1-2] Select</text>
+        <text fg="#444">[1-3] Select</text>
         <text fg="#444" marginLeft={2}>[Q] Quit</text>
       </box>
     </box>
@@ -239,6 +308,14 @@ function App() {
 
       {experiment === "plasma" && (
         <Plasma
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          onBack={goToMenu}
+        />
+      )}
+
+      {experiment === "tunnel" && (
+        <Tunnel
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           onBack={goToMenu}

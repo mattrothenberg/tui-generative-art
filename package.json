@@ -1,0 +1,25 @@
+{
+  "name": "tui-generative-art",
+  "version": "1.0.0",
+  "description": "Generative art experiments for your terminal",
+  "module": "src/index.tsx",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "bun src/index.tsx",
+    "dev": "bun --watch src/index.tsx"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.63",
+    "@opentui/react": "^0.1.63",
+    "react": "^19.2.3",
+    "use-debounce": "^10.0.6"
+  }
+}

@@ -1,3 +1,2 @@
-export { FractalExplorer } from "./fractal";
-export { GameOfLife } from "./life";
 export { FlowField } from "./flow";
+export { Plasma } from "./plasma";

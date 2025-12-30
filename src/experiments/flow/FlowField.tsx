@@ -67,8 +67,8 @@ export function FlowField({
   height = 24,
   onBack,
 }: FlowFieldProps) {
-  const [scale, setScale] = useState(4);
-  const [speed, setSpeed] = useState(100);
+  const [scale, setScale] = useState(1);
+  const [speed, setSpeed] = useState(10);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("arrows");

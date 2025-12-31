@@ -1,11 +1,21 @@
 /**
  * Marquee Experiment
- * News ticker / scrolling banner with large block letters
+ *
+ * A scrolling LED-style news ticker with large block letters.
+ * Features a custom 5x5 pixel bitmap font that supports uppercase
+ * letters, numbers, and common punctuation.
+ *
+ * The effect mimics classic LED/dot-matrix displays commonly seen
+ * in stadiums, stock tickers, and transit stations.
  */
 
 import { useState, useMemo, useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
 import { ExperimentFrame, Slider } from "../../components";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface MarqueeProps {
   width?: number;
@@ -15,7 +25,12 @@ interface MarqueeProps {
 
 type FocusedSlider = "speed" | null;
 
-// 5x5 block letter font (each letter is 5 chars wide, 5 rows tall)
+// ─────────────────────────────────────────────────────────────────────────────
+// 5x5 Bitmap Font
+// Each character is represented as 5 strings of 5 characters.
+// '#' = lit pixel, ' ' = unlit pixel
+// ─────────────────────────────────────────────────────────────────────────────
+
 const FONT: Record<string, string[]> = {
   A: [
     " ### ",
@@ -306,11 +321,18 @@ const FONT: Record<string, string[]> = {
   ],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Font Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
 const LETTER_WIDTH = 5;
 const LETTER_HEIGHT = 5;
-const LETTER_SPACING = 1;
+const LETTER_SPACING = 1; // Space between letters
 
-// Preset messages
+// ─────────────────────────────────────────────────────────────────────────────
+// Preset Messages
+// ─────────────────────────────────────────────────────────────────────────────
+
 const MESSAGES = [
   "BREAKING NEWS: MATT IS BAD AT JAVASCRIPT",
   "HELLO WORLD",
@@ -319,7 +341,11 @@ const MESSAGES = [
   "TUI ROCKS",
 ];
 
-// Color palettes
+// ─────────────────────────────────────────────────────────────────────────────
+// Color Palettes
+// 8 shades each, from dark (background) to bright (lit pixels)
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PALETTES = {
   amber: ["#3d2800", "#5c3d00", "#7a5200", "#996600", "#b87a00", "#d68f00", "#f5a300", "#ffb700"],
   green: ["#002200", "#003300", "#004400", "#005500", "#006600", "#007700", "#008800", "#00aa00"],
@@ -331,7 +357,16 @@ const PALETTES = {
 type PaletteKey = keyof typeof PALETTES;
 const PALETTE_KEYS: PaletteKey[] = ["amber", "green", "blue", "red", "white"];
 
-// Render text to a 2D grid of characters
+// ─────────────────────────────────────────────────────────────────────────────
+// Text Rendering
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Render text to a 2D grid of characters using the bitmap font.
+ * Each character in the output is either '#' (lit) or ' ' (unlit).
+ *
+ * @returns Array of 5 strings (one per row)
+ */
 function renderText(text: string): string[] {
   const rows: string[] = ["", "", "", "", ""];
   
@@ -345,11 +380,16 @@ function renderText(text: string): string[] {
   return rows;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function Marquee({
   width = 80,
   height = 24,
   onBack,
 }: MarqueeProps) {
+  // Animation and display state
   const [speed, setSpeed] = useState(50);
   const [offset, setOffset] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -357,12 +397,13 @@ export function Marquee({
   const [paletteIndex, setPaletteIndex] = useState(0);
   const [focusedSlider, setFocusedSlider] = useState<FocusedSlider>("speed");
 
+  // Current message and rendering
   const message = MESSAGES[messageIndex] ?? "HELLO";
   const renderedText = useMemo(() => renderText(message), [message]);
   const textWidth = renderedText[0]?.length ?? 0;
   const palette = PALETTES[PALETTE_KEYS[paletteIndex] ?? "amber"];
 
-  // Animation loop
+  // Animation loop (~20fps for smooth scrolling)
   useEffect(() => {
     if (!playing) return;
 
@@ -372,7 +413,7 @@ export function Marquee({
     const interval = setInterval(() => {
       setOffset((o) => {
         const newOffset = o + increment;
-        // Reset when text has fully scrolled through
+        // Loop back when text has fully scrolled off screen
         if (newOffset > textWidth + width) {
           return 0;
         }
@@ -383,6 +424,7 @@ export function Marquee({
     return () => clearInterval(interval);
   }, [playing, speed, textWidth, width]);
 
+  // Keyboard controls
   useKeyboard((key) => {
     if (key.name === "escape" || key.name === "backspace") {
       onBack?.();
@@ -390,14 +432,19 @@ export function Marquee({
     }
 
     if (key.name === "space") setPlaying((p) => !p);
+    
+    // Cycle to next message
     if (key.name === "m") {
       setMessageIndex((i) => (i + 1) % MESSAGES.length);
-      setOffset(0);
+      setOffset(0); // Reset scroll position
     }
+    
+    // Cycle color palette
     if (key.name === "c") {
       setPaletteIndex((i) => (i + 1) % PALETTE_KEYS.length);
     }
 
+    // Adjust speed with arrow keys
     if (key.name === "left" || key.name === "right") {
       const delta = key.name === "right" ? 1 : -1;
       if (focusedSlider === "speed") {
@@ -406,7 +453,16 @@ export function Marquee({
     }
   });
 
-  // Render the marquee banner
+  /**
+   * Render the scrolling marquee banner.
+   *
+   * The banner is vertically centered in the viewport with:
+   * - Top/bottom borders (=)
+   * - Padding rows above/below the text
+   * - 5 rows of large block letters
+   *
+   * Characters scroll from right to left based on the offset.
+   */
   const bannerElements = useMemo(() => {
     const rows: JSX.Element[] = [];
     
@@ -414,7 +470,7 @@ export function Marquee({
     const bannerHeight = LETTER_HEIGHT + 4; // letters + padding + borders
     const topPadding = Math.floor((height - bannerHeight) / 2);
     
-    // Add top spacing
+    // Top spacing
     for (let i = 0; i < topPadding; i++) {
       rows.push(<box key={`top-${i}`}><text> </text></box>);
     }
@@ -426,14 +482,14 @@ export function Marquee({
       </box>
     );
     
-    // Empty row above text
+    // Padding row above text
     rows.push(
       <box key="pad-top">
         <text fg={palette[1]}>{" ".repeat(width)}</text>
       </box>
     );
     
-    // Render each row of the large text
+    // Render each row of the block letter text
     for (let row = 0; row < LETTER_HEIGHT; row++) {
       const textRow = renderedText[row] ?? "";
       const segments: { text: string; color: string }[] = [];
@@ -443,20 +499,21 @@ export function Marquee({
       
       for (let x = 0; x < width; x++) {
         // Calculate position in the scrolling text
+        // Text enters from the right side of the screen
         const textX = Math.floor(x + offset - width);
         
         let char = " ";
-        let colorIdx = 0;
+        let colorIdx = 0; // Background (unlit)
         
         if (textX >= 0 && textX < textRow.length) {
           const sourceChar = textRow[textX];
           if (sourceChar === "#") {
-            char = "\u2588"; // Full block character
-            // Use brightest color from palette
-            colorIdx = palette.length - 1;
+            char = "\u2588"; // Full block (lit pixel)
+            colorIdx = palette.length - 1; // Brightest color
           }
         }
         
+        // Batch same-colored characters
         if (colorIdx === currentColorIdx) {
           currentText += char;
         } else {
@@ -481,7 +538,7 @@ export function Marquee({
       );
     }
     
-    // Empty row below text
+    // Padding row below text
     rows.push(
       <box key="pad-bottom">
         <text fg={palette[1]}>{" ".repeat(width)}</text>
@@ -495,7 +552,7 @@ export function Marquee({
       </box>
     );
     
-    // Add bottom spacing
+    // Bottom spacing
     const bottomPadding = height - topPadding - bannerHeight;
     for (let i = 0; i < bottomPadding; i++) {
       rows.push(<box key={`bottom-${i}`}><text> </text></box>);

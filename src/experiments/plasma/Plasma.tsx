@@ -1,12 +1,21 @@
 /**
  * Plasma Experiment
- * Classic demoscene plasma effect using layered sine waves
+ *
+ * A classic demoscene effect using layered sine waves to create
+ * organic, blobby animated patterns. Inspired by 1990s demo scene graphics.
+ *
+ * The plasma effect works by summing multiple sine waves at different
+ * frequencies and directions, then mapping the result to colors.
  */
 
 import { useState, useMemo, useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
 import { ExperimentFrame, Slider } from "../../components";
 import { hueToHex } from "../../utils";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface PlasmaProps {
   width?: number;
@@ -15,30 +24,54 @@ interface PlasmaProps {
 }
 
 type FocusedSlider = "scale" | "speed" | null;
+type CharSet = "blocks" | "dots" | "ascii";
+type Palette = "rainbow" | "fire" | "ocean" | "gray";
 
-// Characters for intensity mapping
+// ─────────────────────────────────────────────────────────────────────────────
+// Character Sets
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Block characters with increasing density */
 const CHARS_BLOCKS = " ░▒▓█";
+
+/** Dot characters with increasing size */
 const CHARS_DOTS = " ·•●█";
+
+/** ASCII art gradient (classic style) */
 const CHARS_ASCII = " .:-=+*#%@";
 
-type CharSet = "blocks" | "dots" | "ascii";
+const CHAR_SETS: Record<CharSet, string> = {
+  blocks: CHARS_BLOCKS,
+  dots: CHARS_DOTS,
+  ascii: CHARS_ASCII,
+};
 
-// Pre-compute color palettes (6 colors each for performance)
+// ─────────────────────────────────────────────────────────────────────────────
+// Color Palettes (pre-computed for performance)
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PALETTE_RAINBOW: string[] = [];
 const PALETTE_FIRE: string[] = [];
 const PALETTE_OCEAN: string[] = [];
 const PALETTE_GRAY: string[] = [];
 
+// Generate 6 colors per palette (fewer colors = better segment batching)
 for (let i = 0; i < 6; i++) {
   const t = i / 6;
+  
+  // Rainbow: full hue spectrum
   PALETTE_RAINBOW.push(hueToHex(t * 360, 0.8, 0.5));
-  PALETTE_FIRE.push(hueToHex(t * 60, 0.9, 0.3 + t * 0.4)); // red -> yellow
-  PALETTE_OCEAN.push(hueToHex(180 + t * 60, 0.7, 0.3 + t * 0.3)); // cyan -> blue
+  
+  // Fire: red to yellow gradient
+  PALETTE_FIRE.push(hueToHex(t * 60, 0.9, 0.3 + t * 0.4));
+  
+  // Ocean: cyan to blue gradient
+  PALETTE_OCEAN.push(hueToHex(180 + t * 60, 0.7, 0.3 + t * 0.3));
+  
+  // Grayscale: dark to light
   const gray = Math.floor(40 + t * 200);
   PALETTE_GRAY.push(`#${gray.toString(16).padStart(2, "0").repeat(3)}`);
 }
-
-type Palette = "rainbow" | "fire" | "ocean" | "gray";
 
 const PALETTES: Record<Palette, string[]> = {
   rainbow: PALETTE_RAINBOW,
@@ -47,49 +80,59 @@ const PALETTES: Record<Palette, string[]> = {
   gray: PALETTE_GRAY,
 };
 
-const CHAR_SETS: Record<CharSet, string> = {
-  blocks: CHARS_BLOCKS,
-  dots: CHARS_DOTS,
-  ascii: CHARS_ASCII,
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// Plasma Function
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Classic plasma function - sum of sines at different frequencies
+ * Calculate plasma intensity at a given point.
+ *
+ * The classic plasma effect is created by summing multiple sine waves
+ * with different frequencies, directions, and phase offsets:
+ * - Horizontal wave (moves left-right)
+ * - Vertical wave (moves up-down)
+ * - Diagonal wave (moves diagonally)
+ * - Two circular waves (radiate outward from offset centers)
+ *
+ * @returns Normalized value in range [0, 1]
  */
 function plasmaValue(x: number, y: number, time: number, scale: number): number {
   const s = scale / 10;
-  
-  // Layer multiple sine waves for organic blobby effect
   let value = 0;
   
   // Horizontal wave
   value += Math.sin(x * s * 0.3 + time);
   
-  // Vertical wave
+  // Vertical wave (slightly faster)
   value += Math.sin(y * s * 0.5 + time * 1.3);
   
   // Diagonal wave
   value += Math.sin((x * s + y * s) * 0.3 + time * 0.7);
   
-  // Circular wave from center
+  // Circular wave from offset center
   const cx = x * s - 4;
   const cy = y * s - 4;
   value += Math.sin(Math.sqrt(cx * cx + cy * cy) * 0.5 + time);
   
-  // Another circular wave, offset
+  // Second circular wave (different center, opposite direction)
   const cx2 = x * s + 2;
   const cy2 = y * s - 2;
   value += Math.sin(Math.sqrt(cx2 * cx2 + cy2 * cy2) * 0.4 - time * 1.2);
   
-  // Normalize to 0-1
+  // Normalize: 5 waves each in [-1,1] gives range [-5,5]
   return (value + 5) / 10;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function Plasma({
   width = 80,
   height = 24,
   onBack,
 }: PlasmaProps) {
+  // Visualization parameters
   const [scale, setScale] = useState(4);
   const [speed, setSpeed] = useState(100);
   const [time, setTime] = useState(0);
@@ -98,11 +141,11 @@ export function Plasma({
   const [charSet, setCharSet] = useState<CharSet>("blocks");
   const [focusedSlider, setFocusedSlider] = useState<FocusedSlider>("scale");
 
-  // Animation loop
+  // Animation loop (~60fps)
   useEffect(() => {
     if (!playing) return;
 
-    const frameTime = 16; // ~60fps
+    const frameTime = 16;
     const timeIncrement = 0.06 * (speed / 100);
 
     const interval = setInterval(() => {
@@ -112,6 +155,7 @@ export function Plasma({
     return () => clearInterval(interval);
   }, [playing, speed]);
 
+  // Keyboard controls
   useKeyboard((key) => {
     if (key.name === "escape" || key.name === "backspace") {
       onBack?.();
@@ -120,7 +164,7 @@ export function Plasma({
 
     if (key.name === "space") setPlaying((p) => !p);
     
-    // Cycle palette
+    // Cycle through color palettes: gray → rainbow → fire → ocean
     if (key.name === "c") {
       setPalette((p) => {
         if (p === "gray") return "rainbow";
@@ -130,7 +174,7 @@ export function Plasma({
       });
     }
     
-    // Cycle character set
+    // Cycle through character sets: blocks → dots → ascii
     if (key.name === "d") {
       setCharSet((c) => {
         if (c === "blocks") return "dots";
@@ -139,10 +183,12 @@ export function Plasma({
       });
     }
 
+    // Tab between sliders
     if (key.name === "tab") {
       setFocusedSlider((prev) => prev === "scale" ? "speed" : "scale");
     }
 
+    // Adjust focused slider with arrow keys
     if (key.name === "left" || key.name === "right") {
       const delta = key.name === "right" ? 1 : -1;
       if (focusedSlider === "scale") {
@@ -153,7 +199,13 @@ export function Plasma({
     }
   });
 
-  // Render plasma
+  /**
+   * Render the plasma effect.
+   *
+   * For each pixel, calculate the plasma value and map it to
+   * both a character (for intensity) and a color (from palette).
+   * Same-colored characters are batched together for efficiency.
+   */
   const plasmaElements = useMemo(() => {
     const colors = PALETTES[palette];
     const chars = CHAR_SETS[charSet];
@@ -165,14 +217,15 @@ export function Plasma({
       let currentColorIdx = -1;
 
       for (let x = 0; x < width; x++) {
-        // Get plasma value (0-1)
+        // Calculate plasma value (y scaled 2x for terminal aspect ratio)
         const value = plasmaValue(x, y * 2, time, scale);
         
-        // Map to color and character indices
+        // Map value to color and character
         const colorIdx = Math.floor(value * (colors.length - 0.01));
         const charIdx = Math.floor(value * (chars.length - 0.01));
         const char = chars[charIdx] ?? " ";
 
+        // Batch consecutive same-colored characters
         if (colorIdx === currentColorIdx) {
           currentText += char;
         } else {

@@ -1,44 +1,66 @@
 /**
- * Simplex noise implementation for flow fields
- * Based on Stefan Gustavson's implementation
+ * Simplex Noise Implementation
+ *
+ * Based on Stefan Gustavson's paper "Simplex noise demystified"
+ * (https://weber.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf)
+ *
+ * Simplex noise is an improvement over Perlin noise with better
+ * performance (O(n) vs O(2^n)) and fewer directional artifacts.
+ * We use 3D noise where the Z dimension represents time, enabling
+ * smooth animations.
  */
 
-// Permutation table
+// ─────────────────────────────────────────────────────────────────────────────
+// Gradient Tables
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Permutation table (doubled for overflow handling) */
 const perm = new Uint8Array(512);
+
+/** Gradient lookup (indexed by permutation) */
 const gradP: { x: number; y: number; z: number }[] = new Array(512);
 
-// Gradient vectors for 3D
+/**
+ * 12 gradient vectors for 3D simplex noise.
+ * These point to the midpoints of the edges of a cube.
+ */
 const grad3 = [
   { x: 1, y: 1, z: 0 }, { x: -1, y: 1, z: 0 }, { x: 1, y: -1, z: 0 }, { x: -1, y: -1, z: 0 },
   { x: 1, y: 0, z: 1 }, { x: -1, y: 0, z: 1 }, { x: 1, y: 0, z: -1 }, { x: -1, y: 0, z: -1 },
   { x: 0, y: 1, z: 1 }, { x: 0, y: -1, z: 1 }, { x: 0, y: 1, z: -1 }, { x: 0, y: -1, z: -1 },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Seeding
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Seed the noise generator
+ * Seed the noise generator with a value.
+ * Different seeds produce different noise patterns.
+ * Uses a Linear Congruential Generator for deterministic randomness.
  */
 export function seed(value: number): void {
   const p = new Uint8Array(256);
   
-  // Simple seeded random
+  // LCG-based seeded random number generator
   let s = value;
   const random = () => {
     s = (s * 1103515245 + 12345) & 0x7fffffff;
     return s / 0x7fffffff;
   };
 
-  // Fill with values 0-255
+  // Initialize permutation array with values 0-255
   for (let i = 0; i < 256; i++) {
     p[i] = i;
   }
 
-  // Shuffle using Fisher-Yates
+  // Fisher-Yates shuffle for unbiased random permutation
   for (let i = 255; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [p[i], p[j]] = [p[j]!, p[i]!];
   }
 
-  // Duplicate for overflow
+  // Double the permutation table to avoid index wrapping
   for (let i = 0; i < 512; i++) {
     perm[i] = p[i & 255]!;
     gradP[i] = grad3[perm[i]! % 12]!;
@@ -48,15 +70,20 @@ export function seed(value: number): void {
 // Initialize with default seed
 seed(0);
 
-// Skewing factors for 2D simplex
+// ─────────────────────────────────────────────────────────────────────────────
+// 2D Simplex Noise
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Skewing factors for 2D (transforms squares to equilateral triangles)
 const F2 = 0.5 * (Math.sqrt(3) - 1);
 const G2 = (3 - Math.sqrt(3)) / 6;
 
 /**
- * 2D Simplex noise
+ * Calculate 2D Simplex noise at a point.
+ * @returns Value in range [-1, 1]
  */
 export function simplex2(x: number, y: number): number {
-  // Skew input space to determine which simplex cell we're in
+  // Skew input space to determine which simplex (triangle) cell we're in
   const s = (x + y) * F2;
   const i = Math.floor(x + s);
   const j = Math.floor(y + s);
@@ -105,14 +132,21 @@ export function simplex2(x: number, y: number): number {
     n2 = t2 * t2 * (g2.x * x2 + g2.y * y2);
   }
 
-  // Scale to [-1, 1]
+  // Scale to approximately [-1, 1]
   return 70 * (n0 + n1 + n2);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 3D Simplex Noise
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * 3D Simplex noise (for animated flow fields)
+ * Calculate 3D Simplex noise at a point.
+ * Use the Z dimension for time to create smooth animations.
+ * @returns Value in range [-1, 1]
  */
 export function simplex3(x: number, y: number, z: number): number {
+  // Skewing factors for 3D (transforms cubes to tetrahedra)
   const F3 = 1 / 3;
   const G3 = 1 / 6;
 

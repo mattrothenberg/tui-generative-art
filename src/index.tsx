@@ -2,6 +2,8 @@
  * TUI Generative Art - Entry Point
  *
  * Interactive generative art experiments for your terminal.
+ * Built with React and OpenTUI for rich terminal graphics.
+ *
  * Run with: bun start
  */
 
@@ -11,44 +13,64 @@ import { createRoot, useKeyboard } from "@opentui/react";
 import { FlowField, Plasma, Marquee } from "./experiments";
 import { simplex3 } from "./experiments/flow/noise";
 
+// Initialize the terminal renderer
 const renderer = await createCliRenderer({
   exitOnCtrlC: true,
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
 type Experiment = "menu" | "flow" | "plasma" | "marquee";
 
-// Canvas dimensions (10:3 aspect ratio)
+/** Main canvas dimensions (10:3 aspect ratio for optimal terminal viewing) */
 const CANVAS_WIDTH = 100;
 const CANVAS_HEIGHT = 30;
 
-// Preview dimensions
+/** Preview card dimensions for the menu */
 const PREVIEW_WIDTH = 24;
 const PREVIEW_HEIGHT = 6;
 
-// Shared palette
+/** 6-level grayscale palette for preview animations */
 const GRAY_PALETTE = ["#333", "#555", "#777", "#999", "#bbb", "#ddd"];
 
-// Mini flow field preview
+// ─────────────────────────────────────────────────────────────────────────────
+// Preview Components (Mini animated previews for the menu cards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Direction arrows for 8 cardinal/ordinal directions */
 const ARROWS = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
 
+/**
+ * Mini flow field preview for the menu card.
+ * Uses simplex noise to animate directional arrows.
+ */
 function FlowPreview({ time }: { time: number }) {
   const elements = useMemo(() => {
     const noiseScale = 0.1;
     const rows: JSX.Element[] = [];
 
     for (let y = 0; y < PREVIEW_HEIGHT; y++) {
+      // Batch consecutive characters with the same color into segments
       const segments: { text: string; color: string }[] = [];
       let currentText = "";
       let currentColorIdx = -1;
 
       for (let x = 0; x < PREVIEW_WIDTH; x++) {
+        // Sample 3D noise (z = time for animation)
         const noiseValue = simplex3(x * noiseScale, y * noiseScale * 2, time);
+
+        // Map noise to angle and select arrow character
         const angle = (noiseValue + 1) * Math.PI;
         const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
         const arrowIdx = Math.round(normalized / (Math.PI / 4)) % 8;
         const char = ARROWS[arrowIdx] ?? "→";
+
+        // Map noise to color index for grayscale shading
         const colorIdx = Math.floor(((noiseValue + 1) / 2) * (GRAY_PALETTE.length - 0.01));
 
+        // Batch characters with same color for rendering efficiency
         if (colorIdx === currentColorIdx) {
           currentText += char;
         } else {
@@ -77,20 +99,31 @@ function FlowPreview({ time }: { time: number }) {
   return <box flexDirection="column">{elements}</box>;
 }
 
-// Mini plasma preview
+/** Block characters for plasma intensity (5 levels: empty to full) */
 const PLASMA_CHARS = " ░▒▓█";
 
+/**
+ * Calculate plasma value at a point using layered sine waves.
+ * Returns normalized value in range [0, 1].
+ */
 function plasmaValue(x: number, y: number, time: number): number {
   let value = 0;
-  value += Math.sin(x * 0.3 + time);
-  value += Math.sin(y * 0.5 + time * 1.3);
-  value += Math.sin((x + y) * 0.3 + time * 0.7);
+  value += Math.sin(x * 0.3 + time);           // Horizontal wave
+  value += Math.sin(y * 0.5 + time * 1.3);     // Vertical wave
+  value += Math.sin((x + y) * 0.3 + time * 0.7); // Diagonal wave
+
+  // Circular wave from offset center
   const cx = x - 4;
   const cy = y - 4;
   value += Math.sin(Math.sqrt(cx * cx + cy * cy) * 0.5 + time);
-  return (value + 4) / 8;
+
+  return (value + 4) / 8; // Normalize to [0, 1]
 }
 
+/**
+ * Mini plasma preview for the menu card.
+ * Shows a simplified plasma effect using sine waves.
+ */
 function PlasmaPreview({ time }: { time: number }) {
   const elements = useMemo(() => {
     const rows: JSX.Element[] = [];
@@ -106,6 +139,7 @@ function PlasmaPreview({ time }: { time: number }) {
         const charIdx = Math.floor(value * (PLASMA_CHARS.length - 0.01));
         const char = PLASMA_CHARS[charIdx] ?? " ";
 
+        // Batch characters with same color
         if (colorIdx === currentColorIdx) {
           currentText += char;
         } else {
@@ -134,15 +168,18 @@ function PlasmaPreview({ time }: { time: number }) {
   return <box flexDirection="column">{elements}</box>;
 }
 
-// Mini marquee preview - simple scrolling text
+/**
+ * Mini marquee preview for the menu card.
+ * Simple scrolling text with LED-style appearance.
+ */
 function MarqueePreview({ time, width = PREVIEW_WIDTH }: { time: number; width?: number }) {
   const message = "  BREAKING NEWS: MATT IS BAD AT JAVASCRIPT  ";
   const offset = Math.floor(time * 12) % message.length;
-  
-  // Create infinitely repeating text by doubling it
+
+  // Create seamless loop by doubling the message
   const repeated = message + message;
   const visible = repeated.slice(offset, offset + width);
-  
+
   return (
     <box flexDirection="column">
       <box><text fg="#996600">{"=".repeat(width)}</text></box>
@@ -154,6 +191,10 @@ function MarqueePreview({ time, width = PREVIEW_WIDTH }: { time: number; width?:
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Menu Components
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ExperimentCardProps {
   number: string;
   title: string;
@@ -163,6 +204,10 @@ interface ExperimentCardProps {
   width?: number;
 }
 
+/**
+ * Card component displaying an experiment preview with title and description.
+ * Used in the main menu grid.
+ */
 function ExperimentCard({ number, title, description, color, preview, width = 28 }: ExperimentCardProps) {
   return (
     <box
@@ -172,12 +217,10 @@ function ExperimentCard({ number, title, description, color, preview, width = 28
       padding={1}
       width={width}
     >
-      {/* Preview */}
       <box marginBottom={1} overflow="hidden">
         {preview}
       </box>
 
-      {/* Title bar */}
       <box flexDirection="row" marginBottom={1}>
         <text fg="#666">[</text>
         <text fg="#fff">{number}</text>
@@ -185,15 +228,18 @@ function ExperimentCard({ number, title, description, color, preview, width = 28
         <text fg={color}>{title}</text>
       </box>
 
-      {/* Description */}
       <text fg="#555">{description}</text>
     </box>
   );
 }
 
+/**
+ * Main menu screen with animated preview cards for each experiment.
+ */
 function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
   const [time, setTime] = useState(0);
 
+  // Animation timer for preview cards (~20fps for previews)
   useEffect(() => {
     const interval = setInterval(() => {
       setTime((t) => t + 0.015);
@@ -201,6 +247,7 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Keyboard navigation
   useKeyboard((key) => {
     if (key.raw === "1") onSelect("flow");
     if (key.raw === "2") onSelect("plasma");
@@ -216,9 +263,8 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
         <text fg="#555">terminal visual experiments</text>
       </box>
 
-      {/* Cards - 2x2 Grid */}
+      {/* Experiment cards in a 2x2 grid layout */}
       <box flexDirection="column" alignItems="center" rowGap={1}>
-        {/* Top row */}
         <box flexDirection="row" justifyContent="center" columnGap={2}>
           <ExperimentCard
             number="1"
@@ -235,7 +281,6 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
             preview={<PlasmaPreview time={time} />}
           />
         </box>
-        {/* Bottom row - full width */}
         <box flexDirection="row" justifyContent="center">
           <ExperimentCard
             number="3"
@@ -248,7 +293,7 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
         </box>
       </box>
 
-      {/* Footer */}
+      {/* Navigation hints */}
       <box flexDirection="row" justifyContent="center" marginTop={2}>
         <text fg="#444">[1-3] Select</text>
         <text fg="#444" marginLeft={2}>[Q] Quit</text>
@@ -257,6 +302,14 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Application Root
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Root application component.
+ * Manages navigation between the menu and individual experiments.
+ */
 function App() {
   const [experiment, setExperiment] = useState<Experiment>("menu");
 
@@ -293,5 +346,6 @@ function App() {
   );
 }
 
-// @ts-ignore
+// Mount the application
+// @ts-ignore - OpenTUI types not fully compatible with React 19
 createRoot(renderer).render(<App />);

@@ -8,14 +8,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard } from "@opentui/react";
-import { FlowField, Plasma, Tunnel } from "./experiments";
+import { FlowField, Plasma, Marquee } from "./experiments";
 import { simplex3 } from "./experiments/flow/noise";
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: true,
 });
 
-type Experiment = "menu" | "flow" | "plasma" | "tunnel";
+type Experiment = "menu" | "flow" | "plasma" | "marquee";
 
 // Canvas dimensions (10:3 aspect ratio)
 const CANVAS_WIDTH = 100;
@@ -134,64 +134,24 @@ function PlasmaPreview({ time }: { time: number }) {
   return <box flexDirection="column">{elements}</box>;
 }
 
-// Mini tunnel preview
-const TUNNEL_CHARS = " ·:=≡#";
-
-function TunnelPreview({ time }: { time: number }) {
-  const elements = useMemo(() => {
-    const rows: JSX.Element[] = [];
-    const centerX = PREVIEW_WIDTH / 2;
-    const centerY = PREVIEW_HEIGHT / 2;
-    const maxDist = Math.sqrt(centerX * centerX + (centerY * 2) * (centerY * 2));
-    const ringCount = 8;
-
-    for (let y = 0; y < PREVIEW_HEIGHT; y++) {
-      const segments: { text: string; color: string }[] = [];
-      let currentText = "";
-      let currentColorIdx = -1;
-
-      for (let x = 0; x < PREVIEW_WIDTH; x++) {
-        const dx = x - centerX;
-        const dy = (y - centerY) * 2;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const normalizedDist = dist / maxDist;
-        const logDist = normalizedDist > 0 ? Math.log(normalizedDist * 10 + 1) / Math.log(11) : 0;
-        const ringPhase = (logDist * ringCount - time) % 1;
-        const adjustedPhase = ringPhase < 0 ? ringPhase + 1 : ringPhase;
-        const ringIntensity = Math.pow(Math.sin(adjustedPhase * Math.PI), 0.5);
-        const depthFade = 1 - normalizedDist * 0.7;
-        const intensity = ringIntensity * depthFade;
-
-        const charIdx = Math.floor(intensity * (TUNNEL_CHARS.length - 0.01));
-        const colorIdx = Math.floor(intensity * (GRAY_PALETTE.length - 0.01));
-        const char = TUNNEL_CHARS[Math.max(0, Math.min(TUNNEL_CHARS.length - 1, charIdx))] ?? " ";
-
-        if (colorIdx === currentColorIdx) {
-          currentText += char;
-        } else {
-          if (currentText) {
-            segments.push({ text: currentText, color: GRAY_PALETTE[currentColorIdx] ?? "#333" });
-          }
-          currentText = char;
-          currentColorIdx = colorIdx;
-        }
-      }
-      if (currentText) {
-        segments.push({ text: currentText, color: GRAY_PALETTE[currentColorIdx] ?? "#333" });
-      }
-
-      rows.push(
-        <box key={y} flexDirection="row">
-          {segments.map((seg, i) => (
-            <text key={i} fg={seg.color}>{seg.text}</text>
-          ))}
-        </box>
-      );
-    }
-    return rows;
-  }, [time]);
-
-  return <box flexDirection="column">{elements}</box>;
+// Mini marquee preview - simple scrolling text
+function MarqueePreview({ time, width = PREVIEW_WIDTH }: { time: number; width?: number }) {
+  const message = "  BREAKING NEWS: MATT IS BAD AT JAVASCRIPT  ";
+  const offset = Math.floor(time * 12) % message.length;
+  
+  // Create infinitely repeating text by doubling it
+  const repeated = message + message;
+  const visible = repeated.slice(offset, offset + width);
+  
+  return (
+    <box flexDirection="column">
+      <box><text fg="#996600">{"=".repeat(width)}</text></box>
+      <box><text fg="#333">{" ".repeat(width)}</text></box>
+      <box><text fg="#ffcc00">{visible.padEnd(width)}</text></box>
+      <box><text fg="#333">{" ".repeat(width)}</text></box>
+      <box><text fg="#996600">{"=".repeat(width)}</text></box>
+    </box>
+  );
 }
 
 interface ExperimentCardProps {
@@ -200,16 +160,17 @@ interface ExperimentCardProps {
   description: string;
   color: string;
   preview: JSX.Element;
+  width?: number;
 }
 
-function ExperimentCard({ number, title, description, color, preview }: ExperimentCardProps) {
+function ExperimentCard({ number, title, description, color, preview, width = 28 }: ExperimentCardProps) {
   return (
     <box
       flexDirection="column"
       borderStyle="rounded"
       borderColor="#333"
       padding={1}
-      width={28}
+      width={width}
     >
       {/* Preview */}
       <box marginBottom={1} overflow="hidden">
@@ -243,7 +204,7 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
   useKeyboard((key) => {
     if (key.raw === "1") onSelect("flow");
     if (key.raw === "2") onSelect("plasma");
-    if (key.raw === "3") onSelect("tunnel");
+    if (key.raw === "3") onSelect("marquee");
     if (key.name === "q") renderer.destroy();
   });
 
@@ -255,29 +216,36 @@ function Menu({ onSelect }: { onSelect: (exp: Experiment) => void }) {
         <text fg="#555">terminal visual experiments</text>
       </box>
 
-      {/* Cards */}
-      <box flexDirection="row" justifyContent="center" columnGap={2}>
-        <ExperimentCard
-          number="1"
-          title="Flow Field"
-          description="Simplex noise vectors"
-          color="#FF6600"
-          preview={<FlowPreview time={time} />}
-        />
-        <ExperimentCard
-          number="2"
-          title="Plasma"
-          description="Demoscene classic"
-          color="#FF00FF"
-          preview={<PlasmaPreview time={time} />}
-        />
-        <ExperimentCard
-          number="3"
-          title="Tunnel"
-          description="Infinite forward"
-          color="#00CCFF"
-          preview={<TunnelPreview time={time} />}
-        />
+      {/* Cards - 2x2 Grid */}
+      <box flexDirection="column" alignItems="center" rowGap={1}>
+        {/* Top row */}
+        <box flexDirection="row" justifyContent="center" columnGap={2}>
+          <ExperimentCard
+            number="1"
+            title="Flow Field"
+            description="Simplex noise vectors"
+            color="#FF6600"
+            preview={<FlowPreview time={time} />}
+          />
+          <ExperimentCard
+            number="2"
+            title="Plasma"
+            description="Demoscene classic"
+            color="#FF00FF"
+            preview={<PlasmaPreview time={time} />}
+          />
+        </box>
+        {/* Bottom row - full width */}
+        <box flexDirection="row" justifyContent="center">
+          <ExperimentCard
+            number="3"
+            title="Marquee"
+            description="Scrolling banner"
+            color="#FFCC00"
+            width={58}
+            preview={<MarqueePreview time={time} width={54} />}
+          />
+        </box>
       </box>
 
       {/* Footer */}
@@ -314,8 +282,8 @@ function App() {
         />
       )}
 
-      {experiment === "tunnel" && (
-        <Tunnel
+      {experiment === "marquee" && (
+        <Marquee
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           onBack={goToMenu}

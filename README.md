@@ -19,6 +19,7 @@ Generative art experiments for your terminal. Built with React and [OpenTUI](htt
 A vector field visualization powered by 3D Simplex noise. Watch organic patterns emerge as arrows, lines, or dots flow through the field.
 
 **Controls:**
+
 - `Space` - Play/Pause
 - `D` - Cycle display mode (arrows → lines → dots)
 - `C` - Toggle color mode (grayscale ↔ rainbow)
@@ -31,6 +32,7 @@ A vector field visualization powered by 3D Simplex noise. Watch organic patterns
 Classic demoscene-style plasma effect using layered sine waves. A nostalgic tribute to 90s demo scene graphics.
 
 **Controls:**
+
 - `Space` - Play/Pause
 - `C` - Cycle palette (gray → rainbow → fire → ocean)
 - `D` - Cycle character set (blocks → dots → ASCII)
@@ -42,6 +44,7 @@ Classic demoscene-style plasma effect using layered sine waves. A nostalgic trib
 LED-style scrolling text banner with a custom 5x5 block font supporting letters, numbers, and punctuation.
 
 **Controls:**
+
 - `Space` - Play/Pause
 - `M` - Cycle through preset messages
 - `C` - Cycle color palette (amber → green → blue → red → white)
@@ -57,7 +60,6 @@ LED-style scrolling text banner with a custom 5x5 block font supporting letters,
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tui-generative-art.git
 cd tui-generative-art
 
 # Install dependencies

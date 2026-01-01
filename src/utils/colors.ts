@@ -101,3 +101,27 @@ export const hueToHex = (hue: number, saturation = 0.8, lightness = 0.5): string
   const [r, g, b] = hslToRgb(hue % 360, saturation, lightness);
   return rgbToHex(r, g, b);
 };
+
+/**
+ * Convert a hex color string to RGB values.
+ * Supports 3-char (#RGB) and 6-char (#RRGGBB) formats.
+ * @returns Object with r, g, b values (0-255)
+ */
+export const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  // Remove # prefix if present
+  const h = hex.startsWith("#") ? hex.slice(1) : hex;
+
+  // Handle 3-char shorthand (#RGB)
+  if (h.length === 3) {
+    const r = parseInt(h[0]! + h[0], 16);
+    const g = parseInt(h[1]! + h[1], 16);
+    const b = parseInt(h[2]! + h[2], 16);
+    return { r, g, b };
+  }
+
+  // Handle 6-char format (#RRGGBB)
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return { r, g, b };
+};

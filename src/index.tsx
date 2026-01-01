@@ -324,6 +324,7 @@ function App() {
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           onBack={goToMenu}
+          renderer={renderer}
         />
       )}
 
@@ -332,6 +333,7 @@ function App() {
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           onBack={goToMenu}
+          renderer={renderer}
         />
       )}
 
@@ -340,6 +342,7 @@ function App() {
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           onBack={goToMenu}
+          renderer={renderer}
         />
       )}
     </box>
